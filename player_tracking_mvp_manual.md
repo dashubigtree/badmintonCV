@@ -450,7 +450,8 @@ python scripts/track_players.py \
   --max-minimap-players 4 \
   --stale-trail-frames 12 \
   --minimap-match-distance 1.8 \
-  --minimap-merge-distance 0.45
+  --minimap-merge-distance 0.45 \
+  --minimap-hold-frames 6
 ```
 
 如果 `mps` 不能跑，改成：
@@ -484,14 +485,17 @@ python scripts/track_players.py \
 | `--stale-trail-frames` | 球員短暫消失後，保留幾幀等待接回同一個小地圖 ID |
 | `--minimap-match-distance` | 新 track ID 距離舊位置多近才接回同一個小地圖 ID，單位約為場地公尺 |
 | `--minimap-merge-distance` | 同一幀中，小地圖座標距離太近的偵測會先合併，遠端球員被重複標示時可調高 |
+| `--minimap-hold-frames` | 球員短暫漏偵測時，小地圖繼續用淡色顯示最後位置幾幀 |
 
 如果遠端球員常常被標成好幾個點，通常是遠端人物太小、遮擋、或姿態點不穩造成的重複偵測。先試：
 
 ```bash
---trail-length 5 --stale-trail-frames 24 --minimap-match-distance 1.0 --minimap-merge-distance 0.6
+--trail-length 5 --stale-trail-frames 24 --minimap-match-distance 1.0 --minimap-merge-distance 0.6 --minimap-hold-frames 8
 ```
 
 如果兩個不同球員靠很近卻被合成一個點，把 `--minimap-merge-distance` 降到 `0.3` 到 `0.4`。
+
+如果遠端後場球員常常整個消失，先把 `--conf` 從 `0.5` 降到 `0.35` 到 `0.4`，並把 `--minimap-hold-frames` 調到 `8` 到 `12`。如果消失後回來但 ID 接不回，再把 `--stale-trail-frames` 調到 `30` 到 `45`。
 
 ### 11.2 第一次建議用哪個模型
 

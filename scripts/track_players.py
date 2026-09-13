@@ -95,6 +95,12 @@ def parse_args() -> argparse.Namespace:
         default=0.45,
         help="Merge same-frame minimap detections closer than this court-meter distance. Use 0 to disable.",
     )
+    parser.add_argument(
+        "--minimap-hold-frames",
+        type=int,
+        default=6,
+        help="Frames to keep showing a missing player at the last minimap position. Use 0 to disable.",
+    )
     return parser.parse_args()
 
 
@@ -118,6 +124,7 @@ def annotate_video(
     stale_trail_frames: int = 12,
     minimap_match_distance: float = 1.8,
     minimap_merge_distance: float = 0.45,
+    minimap_hold_frames: int = 6,
 ) -> None:
     import cv2
     import numpy as np
@@ -148,6 +155,7 @@ def annotate_video(
                 merge_distance_m=max(0.0, minimap_merge_distance),
             ),
             "size": max(120, minimap_size),
+            "hold_frames": max(0, minimap_hold_frames),
         }
 
     cap = cv2.VideoCapture(str(video))
@@ -249,7 +257,12 @@ def annotate_frame(
             draw_status(annotated, "No tracked players inside ROI")
         if minimap_state is not None:
             display_positions = minimap_state["identity"].update({}, frame_index)
-            draw_minimap(annotated, display_positions, minimap_state, show_labels=not minimal_overlay)
+            held_positions = minimap_state["identity"].held_positions(
+                frame_index,
+                minimap_state["hold_frames"],
+                set(display_positions),
+            )
+            draw_minimap(annotated, display_positions, minimap_state, show_labels=not minimal_overlay, held_positions_m=held_positions)
         return annotated
 
     xyxy = boxes.xyxy.cpu().numpy()
@@ -301,7 +314,12 @@ def annotate_frame(
         draw_status(annotated, f"Players in ROI: {kept_count}")
     if minimap_state is not None:
         display_positions = minimap_state["identity"].update(current_positions_m, frame_index)
-        draw_minimap(annotated, display_positions, minimap_state, show_labels=not minimal_overlay)
+        held_positions = minimap_state["identity"].held_positions(
+            frame_index,
+            minimap_state["hold_frames"],
+            set(display_positions),
+        )
+        draw_minimap(annotated, display_positions, minimap_state, show_labels=not minimal_overlay, held_positions_m=held_positions)
     return annotated
 
 
@@ -431,6 +449,7 @@ def draw_minimap(
     current_positions_m: dict[int, tuple[float, float]],
     minimap_state: dict[str, object],
     show_labels: bool,
+    held_positions_m: dict[int, tuple[float, float]] | None = None,
 ) -> None:
     import cv2
 
@@ -478,6 +497,24 @@ def draw_minimap(
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.48,
                 (255, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
+
+    for track_id, point_m in (held_positions_m or {}).items():
+        color = stable_track_color(int(track_id))
+        held_color = tuple(max(40, channel // 2) for channel in color)
+        px, py = minimap_pixel(point_m, origin, (width, height), court_size["width"], court_size["length"], padding)
+        cv2.circle(frame, (px, py), radius=5, color=held_color, thickness=-1)
+        cv2.circle(frame, (px, py), radius=7, color=(170, 170, 170), thickness=1)
+        if show_labels:
+            cv2.putText(
+                frame,
+                str(track_id),
+                (px + 7, py - 5),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.48,
+                (190, 190, 190),
                 2,
                 cv2.LINE_AA,
             )
@@ -557,6 +594,7 @@ def main() -> None:
         stale_trail_frames=args.stale_trail_frames,
         minimap_match_distance=args.minimap_match_distance,
         minimap_merge_distance=args.minimap_merge_distance,
+        minimap_hold_frames=args.minimap_hold_frames,
     )
     print(f"Saved tracked video to {args.output}")
 

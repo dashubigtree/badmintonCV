@@ -36,6 +36,25 @@ class MinimapIdentityStabilizer:
 
         return display_positions
 
+    def held_positions(
+        self,
+        frame_index: int,
+        hold_frames: int,
+        exclude_slot_ids: set[int] | None = None,
+    ) -> dict[int, Point]:
+        if hold_frames <= 0:
+            return {}
+
+        excluded = exclude_slot_ids or set()
+        held: dict[int, Point] = {}
+        for slot_id, point in self.slot_positions.items():
+            if slot_id in excluded:
+                continue
+            missing_frames = frame_index - self.slot_last_seen.get(slot_id, frame_index)
+            if 0 < missing_frames <= hold_frames:
+                held[slot_id] = point
+        return held
+
     def _slot_for_raw_id(
         self,
         raw_id: int,

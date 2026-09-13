@@ -184,6 +184,8 @@ class ROIUtilsTest(unittest.TestCase):
             "1.2",
             "--minimap-merge-distance",
             "0.5",
+            "--minimap-hold-frames",
+            "10",
         ]
 
         with patch.object(sys, "argv", test_args):
@@ -196,6 +198,7 @@ class ROIUtilsTest(unittest.TestCase):
         self.assertEqual(args.stale_trail_frames, 8)
         self.assertEqual(args.minimap_match_distance, 1.2)
         self.assertEqual(args.minimap_merge_distance, 0.5)
+        self.assertEqual(args.minimap_hold_frames, 10)
 
     def test_minimap_identity_relinks_nearby_new_raw_id(self) -> None:
         stabilizer = MinimapIdentityStabilizer(max_players=4, stale_frames=5, match_distance_m=1.0)
@@ -247,6 +250,26 @@ class ROIUtilsTest(unittest.TestCase):
         display_positions = stabilizer.update({10: (2.0, 5.0), 99: (2.2, 5.1)}, frame_index=1)
 
         self.assertEqual(display_positions, {1: (2.0, 5.0)})
+
+    def test_minimap_identity_holds_recently_missing_positions(self) -> None:
+        stabilizer = MinimapIdentityStabilizer(max_players=4, stale_frames=10, match_distance_m=1.0)
+
+        active = stabilizer.update({10: (2.0, 5.0)}, frame_index=1)
+        stabilizer.update({}, frame_index=2)
+        held = stabilizer.held_positions(frame_index=2, hold_frames=3, exclude_slot_ids=set())
+        expired = stabilizer.held_positions(frame_index=5, hold_frames=3, exclude_slot_ids=set())
+
+        self.assertEqual(active, {1: (2.0, 5.0)})
+        self.assertEqual(held, {1: (2.0, 5.0)})
+        self.assertEqual(expired, {})
+
+    def test_minimap_identity_hold_excludes_active_positions(self) -> None:
+        stabilizer = MinimapIdentityStabilizer(max_players=4, stale_frames=10, match_distance_m=1.0)
+
+        active = stabilizer.update({10: (2.0, 5.0)}, frame_index=1)
+        held = stabilizer.held_positions(frame_index=1, hold_frames=3, exclude_slot_ids=set(active))
+
+        self.assertEqual(held, {})
 
     def test_merge_close_raw_positions_can_be_disabled(self) -> None:
         raw_positions = {10: (2.0, 5.0), 99: (2.2, 5.1)}
