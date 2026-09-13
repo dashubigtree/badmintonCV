@@ -12,6 +12,7 @@ from scripts.roi_utils import (
     point_in_polygon,
     validate_polygon,
 )
+from scripts.annotate_court_roi import write_roi_config
 
 
 class ROIUtilsTest(unittest.TestCase):
@@ -39,6 +40,14 @@ class ROIUtilsTest(unittest.TestCase):
                 load_court_polygon(path),
                 [(0.0, 0.0), (10.0, 0.0), (0.0, 10.0)],
             )
+
+    def test_write_roi_config_creates_expected_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "court_roi.json"
+            write_roi_config([(1, 2), (3, 4), (5, 6)], path)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(data["court_polygon"], [[1, 2], [3, 4], [5, 6]])
+            self.assertEqual(data["anchor"], "bottom_center")
 
 
 if __name__ == "__main__":

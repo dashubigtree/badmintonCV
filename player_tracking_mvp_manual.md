@@ -255,7 +255,31 @@ python scripts/extract_first_frame.py \
 
 ### 9.3 ROI 設定檔長什麼樣
 
-畫完後，會得到一組座標，存成：
+你可以用專案提供的互動式標註工具來畫。先確認第 8 步已經產生：
+
+```text
+data/frames/first_frame.jpg
+```
+
+然後執行：
+
+```bash
+python scripts/annotate_court_roi.py \
+  --image data/frames/first_frame.jpg \
+  --output configs/court_roi.json \
+  --preview data/frames/roi_preview.jpg
+```
+
+執行後會跳出一個圖片視窗。你要做的是：
+
+1. 用滑鼠左鍵沿著目標球場邊界依序點選。
+2. 至少點 3 個點，建議先點球場四個角。
+3. 點錯可以按 `U` 回到上一點。
+4. 想重畫可以按 `R` 清空。
+5. 確認範圍正確後按 `Enter` 儲存。
+6. 想取消可以按 `Q` 或 `Esc`。
+
+儲存後會得到一組座標，存成：
 
 ```text
 configs/court_roi.json
@@ -531,4 +555,3 @@ data/output/sample_tracked.mp4
 7. 用第 13 節紀錄第一次結果。
 
 不用一次做到完美。先讓第一支影片跑起來，才會知道真正需要改善的是 ROI、模型、追蹤器，還是影片本身。
-
