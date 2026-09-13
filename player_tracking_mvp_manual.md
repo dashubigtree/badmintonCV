@@ -446,7 +446,10 @@ python scripts/track_players.py \
   --tracker bytetrack.yaml \
   --device mps \
   --minimap \
-  --court-calibration configs/court_calibration.json
+  --court-calibration configs/court_calibration.json \
+  --max-minimap-players 4 \
+  --stale-trail-frames 12 \
+  --minimap-match-distance 1.8
 ```
 
 如果 `mps` 不能跑，改成：
@@ -476,6 +479,9 @@ python scripts/track_players.py \
 | `--minimap` | 在右上角畫平面羽球場與球員移動軌跡 |
 | `--court-calibration` | 場地校正檔，使用 `annotate_court_calibration.py` 產生 |
 | `--trail-length` | 小地圖保留幾幀的移動尾跡，預設 `90` |
+| `--max-minimap-players` | 小地圖最多顯示幾位球員，雙打建議 `4` |
+| `--stale-trail-frames` | 球員短暫消失後，保留幾幀等待接回同一個小地圖 ID |
+| `--minimap-match-distance` | 新 track ID 距離舊位置多近才接回同一個小地圖 ID，單位約為場地公尺 |
 
 ### 11.2 第一次建議用哪個模型
 

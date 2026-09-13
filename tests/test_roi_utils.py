@@ -30,6 +30,7 @@ from scripts.court_minimap import (
 )
 from scripts.pose_utils import visible_pose_points
 from scripts.track_players import parse_args
+from scripts.minimap_identity import MinimapIdentityStabilizer
 
 
 class ROIUtilsTest(unittest.TestCase):
@@ -175,6 +176,12 @@ class ROIUtilsTest(unittest.TestCase):
             "configs/court_calibration.json",
             "--trail-length",
             "30",
+            "--max-minimap-players",
+            "4",
+            "--stale-trail-frames",
+            "8",
+            "--minimap-match-distance",
+            "1.2",
         ]
 
         with patch.object(sys, "argv", test_args):
@@ -183,6 +190,43 @@ class ROIUtilsTest(unittest.TestCase):
         self.assertTrue(args.minimap)
         self.assertEqual(args.court_calibration, "configs/court_calibration.json")
         self.assertEqual(args.trail_length, 30)
+        self.assertEqual(args.max_minimap_players, 4)
+        self.assertEqual(args.stale_trail_frames, 8)
+        self.assertEqual(args.minimap_match_distance, 1.2)
+
+    def test_minimap_identity_relinks_nearby_new_raw_id(self) -> None:
+        stabilizer = MinimapIdentityStabilizer(max_players=4, stale_frames=5, match_distance_m=1.0)
+
+        first = stabilizer.update({10: (2.0, 5.0)}, frame_index=1)
+        disappeared = stabilizer.update({}, frame_index=2)
+        relinked = stabilizer.update({99: (2.4, 5.1)}, frame_index=3)
+
+        self.assertEqual(first, {1: (2.0, 5.0)})
+        self.assertEqual(disappeared, {})
+        self.assertEqual(relinked, {1: (2.4, 5.1)})
+
+    def test_minimap_identity_limits_displayed_players(self) -> None:
+        stabilizer = MinimapIdentityStabilizer(max_players=2, stale_frames=5, match_distance_m=0.1)
+
+        display_positions = stabilizer.update(
+            {
+                10: (1.0, 1.0),
+                20: (2.0, 2.0),
+                30: (3.0, 3.0),
+            },
+            frame_index=1,
+        )
+
+        self.assertEqual(len(display_positions), 2)
+
+    def test_minimap_identity_does_not_reuse_active_slot_in_same_frame(self) -> None:
+        stabilizer = MinimapIdentityStabilizer(max_players=4, stale_frames=5, match_distance_m=1.0)
+
+        stabilizer.update({10: (2.0, 5.0)}, frame_index=1)
+        display_positions = stabilizer.update({10: (2.1, 5.0), 99: (2.2, 5.0)}, frame_index=2)
+
+        self.assertEqual(display_positions[1], (2.1, 5.0))
+        self.assertEqual(display_positions[2], (2.2, 5.0))
 
 
 if __name__ == "__main__":

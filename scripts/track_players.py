@@ -12,6 +12,7 @@ try:
         point_is_inside_court,
         stable_track_color,
     )
+    from .minimap_identity import MinimapIdentityStabilizer
     from .pose_utils import POSE_SKELETON_EDGES, visible_pose_points
     from .roi_utils import bottom_center, load_court_polygon, point_in_polygon, polygon_as_int_points
 except ImportError:
@@ -22,6 +23,7 @@ except ImportError:
         point_is_inside_court,
         stable_track_color,
     )
+    from minimap_identity import MinimapIdentityStabilizer
     from pose_utils import POSE_SKELETON_EDGES, visible_pose_points
     from roi_utils import bottom_center, load_court_polygon, point_in_polygon, polygon_as_int_points
 
@@ -74,6 +76,19 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--minimap-size", type=int, default=220, help="Minimap height in pixels.")
     parser.add_argument("--trail-length", type=int, default=90, help="Number of past positions to keep per player.")
+    parser.add_argument("--max-minimap-players", type=int, default=4, help="Maximum displayed players on the minimap.")
+    parser.add_argument(
+        "--stale-trail-frames",
+        type=int,
+        default=12,
+        help="Frames to keep a missing minimap identity available for re-linking.",
+    )
+    parser.add_argument(
+        "--minimap-match-distance",
+        type=float,
+        default=1.8,
+        help="Maximum court-meter distance for re-linking a new tracker ID to a missing minimap identity.",
+    )
     return parser.parse_args()
 
 
@@ -93,6 +108,9 @@ def annotate_video(
     court_calibration_path: str | Path | None = None,
     minimap_size: int = 220,
     trail_length: int = 90,
+    max_minimap_players: int = 4,
+    stale_trail_frames: int = 12,
+    minimap_match_distance: float = 1.8,
 ) -> None:
     import cv2
     import numpy as np
@@ -116,6 +134,11 @@ def annotate_video(
             "homography": homography,
             "court_size_m": calibration["court_size_m"],
             "trails": defaultdict(lambda: deque(maxlen=max(1, trail_length))),
+            "identity": MinimapIdentityStabilizer(
+                max_players=max(1, max_minimap_players),
+                stale_frames=max(0, stale_trail_frames),
+                match_distance_m=max(0.1, minimap_match_distance),
+            ),
             "size": max(120, minimap_size),
         }
 
@@ -171,6 +194,7 @@ def annotate_video(
                 pose_conf,
                 minimal_overlay,
                 minimap_state,
+                frame_index,
             )
             writer.write(annotated)
             frame_index += 1
@@ -204,6 +228,7 @@ def annotate_frame(
     pose_conf: float,
     minimal_overlay: bool,
     minimap_state: dict[str, object] | None = None,
+    frame_index: int = 0,
 ) -> np.ndarray:
     import numpy as np
 
@@ -215,7 +240,8 @@ def annotate_frame(
         if not minimal_overlay:
             draw_status(annotated, "No tracked players inside ROI")
         if minimap_state is not None:
-            draw_minimap(annotated, {}, minimap_state, show_labels=not minimal_overlay)
+            display_positions = minimap_state["identity"].update({}, frame_index)
+            draw_minimap(annotated, display_positions, minimap_state, show_labels=not minimal_overlay)
         return annotated
 
     xyxy = boxes.xyxy.cpu().numpy()
@@ -266,7 +292,8 @@ def annotate_frame(
     if not minimal_overlay:
         draw_status(annotated, f"Players in ROI: {kept_count}")
     if minimap_state is not None:
-        draw_minimap(annotated, current_positions_m, minimap_state, show_labels=not minimal_overlay)
+        display_positions = minimap_state["identity"].update(current_positions_m, frame_index)
+        draw_minimap(annotated, display_positions, minimap_state, show_labels=not minimal_overlay)
     return annotated
 
 
@@ -515,6 +542,9 @@ def main() -> None:
         court_calibration_path=args.court_calibration,
         minimap_size=args.minimap_size,
         trail_length=args.trail_length,
+        max_minimap_players=args.max_minimap_players,
+        stale_trail_frames=args.stale_trail_frames,
+        minimap_match_distance=args.minimap_match_distance,
     )
     print(f"Saved tracked video to {args.output}")
 
