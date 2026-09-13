@@ -15,6 +15,12 @@ THREE_POINT_FAR_LABELS = (
     "net_left_post",
     "net_right_post",
 )
+BEST_FOUR_FAR_NET_LABELS = (
+    "far_left_doubles_long_service",
+    "far_right_doubles_long_service",
+    "net_right_post",
+    "net_left_post",
+)
 Point = tuple[float, float]
 
 
@@ -35,6 +41,19 @@ def three_point_far_court_points(
         (width_m / 2.0, doubles_long_service_offset_m),
         (0.0, length_m / 2.0),
         (width_m, length_m / 2.0),
+    ]
+
+
+def best_four_far_net_court_points(
+    width_m: float = COURT_WIDTH_M,
+    length_m: float = COURT_LENGTH_M,
+    doubles_long_service_offset_m: float = DOUBLES_LONG_SERVICE_OFFSET_M,
+) -> list[Point]:
+    return [
+        (0.0, doubles_long_service_offset_m),
+        (width_m, doubles_long_service_offset_m),
+        (width_m, length_m / 2.0),
+        (0.0, length_m / 2.0),
     ]
 
 
@@ -81,6 +100,33 @@ def write_three_point_far_calibration(
         "notes": (
             "Approximate affine calibration for cropped views. "
             "Use this for relative minimap positions, not precise distance measurement."
+        ),
+    }
+    output.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_best_four_far_net_calibration(
+    image_points: Iterable[tuple[int, int]],
+    output_path: str | Path,
+    width_m: float = COURT_WIDTH_M,
+    length_m: float = COURT_LENGTH_M,
+) -> None:
+    points = list(image_points)
+    if len(points) != 4:
+        raise CourtCalibrationError("Best-four far/net calibration requires exactly 4 points.")
+
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "court_size_m": {"width": width_m, "length": length_m},
+        "calibration_type": "best_four_far_net_homography",
+        "transform_type": "homography",
+        "point_order": list(BEST_FOUR_FAR_NET_LABELS),
+        "image_points": [[int(x), int(y)] for x, y in points],
+        "court_points_m": [[x, y] for x, y in best_four_far_net_court_points(width_m, length_m)],
+        "notes": (
+            "Recommended calibration for cropped near-court views. "
+            "Uses far doubles long service line endpoints and net-side left/right points."
         ),
     }
     output.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
