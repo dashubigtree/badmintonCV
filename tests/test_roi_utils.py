@@ -13,6 +13,7 @@ from scripts.roi_utils import (
     validate_polygon,
 )
 from scripts.annotate_court_roi import write_roi_config
+from scripts.pose_utils import visible_pose_points
 
 
 class ROIUtilsTest(unittest.TestCase):
@@ -48,6 +49,22 @@ class ROIUtilsTest(unittest.TestCase):
             data = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(data["court_polygon"], [[1, 2], [3, 4], [5, 6]])
             self.assertEqual(data["anchor"], "bottom_center")
+
+    def test_visible_pose_points_keeps_requested_joints_above_confidence(self) -> None:
+        xy = [[0, 0] for _ in range(17)]
+        xy[0] = [10.2, 20.7]
+        xy[5] = [30, 40]
+        xy[6] = [50, 60]
+        conf = [0.0 for _ in range(17)]
+        conf[0] = 0.95
+        conf[5] = 0.80
+        conf[6] = 0.10
+
+        points = visible_pose_points(xy, conf, min_confidence=0.30)
+
+        self.assertEqual(points[0], (10, 21, "Head"))
+        self.assertEqual(points[5], (30, 40, "L Sho"))
+        self.assertNotIn(6, points)
 
 
 if __name__ == "__main__":

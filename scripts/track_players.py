@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from pose_utils import POSE_SKELETON_EDGES, visible_pose_points
 from roi_utils import bottom_center, load_court_polygon, point_in_polygon, polygon_as_int_points
 
 
@@ -16,7 +17,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--video", required=True, help="Input video path.")
     parser.add_argument("--roi", required=True, help="ROI JSON config path.")
     parser.add_argument("--output", required=True, help="Output annotated video path.")
-    parser.add_argument("--model", default="yolo11s.pt", help="Ultralytics YOLO model path/name.")
+    parser.add_argument(
+        "--model",
+        default="yolo11s.pt",
+        help="Ultralytics YOLO model path/name. Use a pose model such as yolo11s-pose.pt to draw joints.",
+    )
     parser.add_argument("--tracker", default="bytetrack.yaml", help="Ultralytics tracker config.")
     parser.add_argument("--device", default=None, help="Inference device, for example mps or cpu.")
     parser.add_argument("--conf", type=float, default=0.25, help="Detection confidence threshold.")
@@ -26,6 +31,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Optional frame limit for quick tests.",
+    )
+    parser.add_argument(
+        "--pose-conf",
+        type=float,
+        default=0.30,
+        help="Minimum keypoint confidence for drawing pose joints.",
     )
     return parser.parse_args()
 
@@ -40,6 +51,7 @@ def annotate_video(
     conf: float,
     imgsz: int,
     max_frames: int | None = None,
+    pose_conf: float = 0.30,
 ) -> None:
     import cv2
     import numpy as np
@@ -96,7 +108,7 @@ def annotate_video(
                 device=device,
                 verbose=False,
             )
-            annotated = annotate_frame(frame, results[0], polygon, polygon_points)
+            annotated = annotate_frame(frame, results[0], polygon, polygon_points, pose_conf)
             writer.write(annotated)
             frame_index += 1
     finally:
@@ -107,7 +119,15 @@ def annotate_video(
         raise RuntimeError(f"No frames were processed from: {video}")
 
 
-def annotate_frame(frame: np.ndarray, result: object, polygon: list[tuple[float, float]], polygon_points: np.ndarray) -> np.ndarray:
+def annotate_frame(
+    frame: np.ndarray,
+    result: object,
+    polygon: list[tuple[float, float]],
+    polygon_points: np.ndarray,
+    pose_conf: float,
+) -> np.ndarray:
+    import numpy as np
+
     annotated = frame.copy()
     draw_polygon(annotated, polygon_points)
 
@@ -119,9 +139,10 @@ def annotate_frame(frame: np.ndarray, result: object, polygon: list[tuple[float,
     xyxy = boxes.xyxy.cpu().numpy()
     track_ids = boxes.id.cpu().numpy().astype(int)
     confidences = boxes.conf.cpu().numpy() if boxes.conf is not None else np.zeros(len(xyxy))
+    pose_xy, pose_scores = get_pose_arrays(result)
 
     kept_count = 0
-    for box, track_id, confidence in zip(xyxy, track_ids, confidences, strict=True):
+    for detection_index, (box, track_id, confidence) in enumerate(zip(xyxy, track_ids, confidences)):
         box_tuple = tuple(float(value) for value in box)
         anchor = bottom_center(box_tuple)
         if not point_in_polygon(anchor, polygon):
@@ -129,9 +150,24 @@ def annotate_frame(frame: np.ndarray, result: object, polygon: list[tuple[float,
 
         kept_count += 1
         draw_player_box(annotated, box_tuple, track_id, float(confidence), anchor)
+        if pose_xy is not None and detection_index < len(pose_xy):
+            keypoint_conf = pose_scores[detection_index] if pose_scores is not None else None
+            draw_pose_keypoints(annotated, pose_xy[detection_index], keypoint_conf, pose_conf)
 
     draw_status(annotated, f"Players in ROI: {kept_count}")
     return annotated
+
+
+def get_pose_arrays(result: object) -> tuple[object | None, object | None]:
+    keypoints = getattr(result, "keypoints", None)
+    if keypoints is None or getattr(keypoints, "xy", None) is None:
+        return None, None
+
+    xy = keypoints.xy.cpu().numpy()
+    conf = None
+    if getattr(keypoints, "conf", None) is not None:
+        conf = keypoints.conf.cpu().numpy()
+    return xy, conf
 
 
 def draw_polygon(frame: np.ndarray, polygon_points: np.ndarray) -> None:
@@ -171,6 +207,36 @@ def draw_player_box(
     )
 
 
+def draw_pose_keypoints(
+    frame: np.ndarray,
+    xy: object,
+    conf: object | None,
+    min_confidence: float,
+) -> None:
+    import cv2
+
+    points = visible_pose_points(xy, conf, min_confidence)
+    for start_index, end_index in POSE_SKELETON_EDGES:
+        if start_index in points and end_index in points:
+            start = points[start_index][:2]
+            end = points[end_index][:2]
+            cv2.line(frame, start, end, color=(255, 170, 0), thickness=2)
+
+    for _index, (x, y, label) in points.items():
+        cv2.circle(frame, (x, y), radius=5, color=(0, 0, 255), thickness=-1)
+        cv2.circle(frame, (x, y), radius=7, color=(255, 255, 255), thickness=1)
+        cv2.putText(
+            frame,
+            label,
+            (x + 6, y - 6),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.45,
+            (0, 0, 255),
+            1,
+            cv2.LINE_AA,
+        )
+
+
 def draw_status(frame: np.ndarray, text: str) -> None:
     import cv2
 
@@ -208,6 +274,7 @@ def main() -> None:
         conf=args.conf,
         imgsz=args.imgsz,
         max_frames=args.max_frames,
+        pose_conf=args.pose_conf,
     )
     print(f"Saved tracked video to {args.output}")
 

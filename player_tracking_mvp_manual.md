@@ -339,7 +339,7 @@ data/frames/roi_preview.jpg
 
 這一步會讀取原始影片，輸出一支新影片。
 
-預期指令：
+如果只要畫人物方框，使用一般偵測模型：
 
 ```bash
 python scripts/track_players.py \
@@ -351,14 +351,26 @@ python scripts/track_players.py \
   --device mps
 ```
 
+如果要同時畫出人體關節點，改用 pose 模型：
+
+```bash
+python scripts/track_players.py \
+  --video data/input/sample.mp4 \
+  --roi configs/court_roi.json \
+  --output data/output/sample_tracked_pose.mp4 \
+  --model yolo11s-pose.pt \
+  --tracker bytetrack.yaml \
+  --device mps
+```
+
 如果 `mps` 不能跑，改成：
 
 ```bash
 python scripts/track_players.py \
   --video data/input/sample.mp4 \
   --roi configs/court_roi.json \
-  --output data/output/sample_tracked.mp4 \
-  --model yolo11s.pt \
+  --output data/output/sample_tracked_pose.mp4 \
+  --model yolo11s-pose.pt \
   --tracker bytetrack.yaml \
   --device cpu
 ```
@@ -370,17 +382,26 @@ python scripts/track_players.py \
 | `--video` | 原始影片在哪裡 |
 | `--roi` | 球場範圍設定檔在哪裡 |
 | `--output` | 新的標註影片要輸出到哪裡 |
-| `--model` | 用哪個 AI 模型找人 |
+| `--model` | 用哪個 AI 模型找人；要畫關節點請用 `yolo11s-pose.pt` 這類 pose 模型 |
 | `--tracker` | 用哪個方法維持人物 ID |
 | `--device` | 用 M2 Max GPU 或 CPU 跑 |
+| `--pose-conf` | 關節點信心門檻，預設 `0.30`，數字越高越嚴格 |
 
 ### 11.2 第一次建議用哪個模型
 
-第一版建議先用：
+只看人物方框時，第一版建議先用：
 
 ```text
 yolo11s.pt
 ```
+
+要看關節點時，第一版建議先用：
+
+```text
+yolo11s-pose.pt
+```
+
+這會標示頭、左右肩、左右手肘、左右手腕、左右髖、左右膝蓋、左右腳踝。
 
 如果你只是想快速測流程，可以用：
 
