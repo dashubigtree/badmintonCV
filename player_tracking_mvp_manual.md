@@ -363,6 +363,19 @@ python scripts/track_players.py \
   --device mps
 ```
 
+如果覺得畫面上的 ID、信心分數、關節文字太干擾，可以加上簡潔模式，只保留方框、關節點、骨架線與 ROI：
+
+```bash
+python scripts/track_players.py \
+  --video data/input/sample.mp4 \
+  --roi configs/court_roi.json \
+  --output data/output/sample_tracked_pose_minimal.mp4 \
+  --model yolo11s-pose.pt \
+  --tracker bytetrack.yaml \
+  --device mps \
+  --minimal-overlay
+```
+
 如果 `mps` 不能跑，改成：
 
 ```bash
@@ -386,6 +399,7 @@ python scripts/track_players.py \
 | `--tracker` | 用哪個方法維持人物 ID |
 | `--device` | 用 M2 Max GPU 或 CPU 跑 |
 | `--pose-conf` | 關節點信心門檻，預設 `0.30`，數字越高越嚴格 |
+| `--minimal-overlay` | 簡潔模式，不顯示 ID、信心分數、關節文字或左上角統計 |
 
 ### 11.2 第一次建議用哪個模型
 

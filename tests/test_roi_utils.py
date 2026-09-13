@@ -14,6 +14,7 @@ from scripts.roi_utils import (
 )
 from scripts.annotate_court_roi import write_roi_config
 from scripts.pose_utils import visible_pose_points
+from scripts.track_players import parse_args
 
 
 class ROIUtilsTest(unittest.TestCase):
@@ -65,6 +66,26 @@ class ROIUtilsTest(unittest.TestCase):
         self.assertEqual(points[0], (10, 21, "Head"))
         self.assertEqual(points[5], (30, 40, "L Sho"))
         self.assertNotIn(6, points)
+
+    def test_track_players_parse_args_accepts_minimal_overlay(self) -> None:
+        import sys
+        from unittest.mock import patch
+
+        test_args = [
+            "track_players.py",
+            "--video",
+            "data/input/sample.mp4",
+            "--roi",
+            "configs/court_roi.json",
+            "--output",
+            "data/output/out.mp4",
+            "--minimal-overlay",
+        ]
+
+        with patch.object(sys, "argv", test_args):
+            args = parse_args()
+
+        self.assertTrue(args.minimal_overlay)
 
 
 if __name__ == "__main__":

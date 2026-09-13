@@ -3,8 +3,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from pose_utils import POSE_SKELETON_EDGES, visible_pose_points
-from roi_utils import bottom_center, load_court_polygon, point_in_polygon, polygon_as_int_points
+try:
+    from .pose_utils import POSE_SKELETON_EDGES, visible_pose_points
+    from .roi_utils import bottom_center, load_court_polygon, point_in_polygon, polygon_as_int_points
+except ImportError:
+    from pose_utils import POSE_SKELETON_EDGES, visible_pose_points
+    from roi_utils import bottom_center, load_court_polygon, point_in_polygon, polygon_as_int_points
 
 
 PERSON_CLASS_ID = 0
@@ -38,6 +42,11 @@ def parse_args() -> argparse.Namespace:
         default=0.30,
         help="Minimum keypoint confidence for drawing pose joints.",
     )
+    parser.add_argument(
+        "--minimal-overlay",
+        action="store_true",
+        help="Draw only ROI, boxes, skeleton lines, and joint dots without text or numeric values.",
+    )
     return parser.parse_args()
 
 
@@ -52,6 +61,7 @@ def annotate_video(
     imgsz: int,
     max_frames: int | None = None,
     pose_conf: float = 0.30,
+    minimal_overlay: bool = False,
 ) -> None:
     import cv2
     import numpy as np
@@ -108,7 +118,14 @@ def annotate_video(
                 device=device,
                 verbose=False,
             )
-            annotated = annotate_frame(frame, results[0], polygon, polygon_points, pose_conf)
+            annotated = annotate_frame(
+                frame,
+                results[0],
+                polygon,
+                polygon_points,
+                pose_conf,
+                minimal_overlay,
+            )
             writer.write(annotated)
             frame_index += 1
     finally:
@@ -125,6 +142,7 @@ def annotate_frame(
     polygon: list[tuple[float, float]],
     polygon_points: np.ndarray,
     pose_conf: float,
+    minimal_overlay: bool,
 ) -> np.ndarray:
     import numpy as np
 
@@ -133,7 +151,8 @@ def annotate_frame(
 
     boxes = getattr(result, "boxes", None)
     if boxes is None or boxes.id is None:
-        draw_status(annotated, "No tracked players inside ROI")
+        if not minimal_overlay:
+            draw_status(annotated, "No tracked players inside ROI")
         return annotated
 
     xyxy = boxes.xyxy.cpu().numpy()
@@ -149,12 +168,26 @@ def annotate_frame(
             continue
 
         kept_count += 1
-        draw_player_box(annotated, box_tuple, track_id, float(confidence), anchor)
+        draw_player_box(
+            annotated,
+            box_tuple,
+            track_id,
+            float(confidence),
+            anchor,
+            show_text=not minimal_overlay,
+        )
         if pose_xy is not None and detection_index < len(pose_xy):
             keypoint_conf = pose_scores[detection_index] if pose_scores is not None else None
-            draw_pose_keypoints(annotated, pose_xy[detection_index], keypoint_conf, pose_conf)
+            draw_pose_keypoints(
+                annotated,
+                pose_xy[detection_index],
+                keypoint_conf,
+                pose_conf,
+                show_labels=not minimal_overlay,
+            )
 
-    draw_status(annotated, f"Players in ROI: {kept_count}")
+    if not minimal_overlay:
+        draw_status(annotated, f"Players in ROI: {kept_count}")
     return annotated
 
 
@@ -185,6 +218,7 @@ def draw_player_box(
     track_id: int,
     confidence: float,
     anchor: tuple[float, float],
+    show_text: bool = True,
 ) -> None:
     import cv2
 
@@ -192,6 +226,9 @@ def draw_player_box(
     ax, ay = (int(round(value)) for value in anchor)
     cv2.rectangle(frame, (x1, y1), (x2, y2), color=(40, 220, 40), thickness=2)
     cv2.circle(frame, (ax, ay), radius=4, color=(0, 0, 255), thickness=-1)
+
+    if not show_text:
+        return
 
     label = f"ID {track_id} {confidence:.2f}"
     label_y = max(24, y1 - 8)
@@ -212,6 +249,7 @@ def draw_pose_keypoints(
     xy: object,
     conf: object | None,
     min_confidence: float,
+    show_labels: bool = True,
 ) -> None:
     import cv2
 
@@ -225,6 +263,8 @@ def draw_pose_keypoints(
     for _index, (x, y, label) in points.items():
         cv2.circle(frame, (x, y), radius=5, color=(0, 0, 255), thickness=-1)
         cv2.circle(frame, (x, y), radius=7, color=(255, 255, 255), thickness=1)
+        if not show_labels:
+            continue
         cv2.putText(
             frame,
             label,
@@ -275,6 +315,7 @@ def main() -> None:
         imgsz=args.imgsz,
         max_frames=args.max_frames,
         pose_conf=args.pose_conf,
+        minimal_overlay=args.minimal_overlay,
     )
     print(f"Saved tracked video to {args.output}")
 
