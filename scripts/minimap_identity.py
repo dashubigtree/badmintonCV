@@ -11,6 +11,7 @@ class MinimapIdentityStabilizer:
     max_players: int = 4
     stale_frames: int = 12
     match_distance_m: float = 1.8
+    merge_distance_m: float = 0.45
     next_slot_id: int = 1
     raw_to_slot: dict[int, int] = field(default_factory=dict)
     slot_positions: dict[int, Point] = field(default_factory=dict)
@@ -20,8 +21,9 @@ class MinimapIdentityStabilizer:
         self._remove_stale_slots(frame_index)
         display_positions: dict[int, Point] = {}
         used_slots: set[int] = set()
+        merged_raw_positions = merge_close_raw_positions(raw_positions, self.merge_distance_m)
 
-        for raw_id, point in sorted(raw_positions.items()):
+        for raw_id, point in sorted(merged_raw_positions.items()):
             slot_id = self._slot_for_raw_id(raw_id, point, frame_index, used_slots)
             if slot_id is None:
                 continue
@@ -94,3 +96,15 @@ class MinimapIdentityStabilizer:
 
 def euclidean_distance(a: Point, b: Point) -> float:
     return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+
+
+def merge_close_raw_positions(raw_positions: dict[int, Point], merge_distance_m: float) -> dict[int, Point]:
+    if merge_distance_m <= 0:
+        return dict(raw_positions)
+
+    merged: dict[int, Point] = {}
+    for raw_id, point in sorted(raw_positions.items()):
+        if any(euclidean_distance(point, kept_point) <= merge_distance_m for kept_point in merged.values()):
+            continue
+        merged[raw_id] = point
+    return merged

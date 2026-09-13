@@ -30,7 +30,7 @@ from scripts.court_minimap import (
 )
 from scripts.pose_utils import visible_pose_points
 from scripts.track_players import parse_args
-from scripts.minimap_identity import MinimapIdentityStabilizer
+from scripts.minimap_identity import MinimapIdentityStabilizer, merge_close_raw_positions
 
 
 class ROIUtilsTest(unittest.TestCase):
@@ -182,6 +182,8 @@ class ROIUtilsTest(unittest.TestCase):
             "8",
             "--minimap-match-distance",
             "1.2",
+            "--minimap-merge-distance",
+            "0.5",
         ]
 
         with patch.object(sys, "argv", test_args):
@@ -193,6 +195,7 @@ class ROIUtilsTest(unittest.TestCase):
         self.assertEqual(args.max_minimap_players, 4)
         self.assertEqual(args.stale_trail_frames, 8)
         self.assertEqual(args.minimap_match_distance, 1.2)
+        self.assertEqual(args.minimap_merge_distance, 0.5)
 
     def test_minimap_identity_relinks_nearby_new_raw_id(self) -> None:
         stabilizer = MinimapIdentityStabilizer(max_players=4, stale_frames=5, match_distance_m=1.0)
@@ -220,13 +223,37 @@ class ROIUtilsTest(unittest.TestCase):
         self.assertEqual(len(display_positions), 2)
 
     def test_minimap_identity_does_not_reuse_active_slot_in_same_frame(self) -> None:
-        stabilizer = MinimapIdentityStabilizer(max_players=4, stale_frames=5, match_distance_m=1.0)
+        stabilizer = MinimapIdentityStabilizer(
+            max_players=4,
+            stale_frames=5,
+            match_distance_m=1.0,
+            merge_distance_m=0.0,
+        )
 
         stabilizer.update({10: (2.0, 5.0)}, frame_index=1)
         display_positions = stabilizer.update({10: (2.1, 5.0), 99: (2.2, 5.0)}, frame_index=2)
 
         self.assertEqual(display_positions[1], (2.1, 5.0))
         self.assertEqual(display_positions[2], (2.2, 5.0))
+
+    def test_minimap_identity_merges_close_same_frame_positions(self) -> None:
+        stabilizer = MinimapIdentityStabilizer(
+            max_players=4,
+            stale_frames=5,
+            match_distance_m=1.0,
+            merge_distance_m=0.5,
+        )
+
+        display_positions = stabilizer.update({10: (2.0, 5.0), 99: (2.2, 5.1)}, frame_index=1)
+
+        self.assertEqual(display_positions, {1: (2.0, 5.0)})
+
+    def test_merge_close_raw_positions_can_be_disabled(self) -> None:
+        raw_positions = {10: (2.0, 5.0), 99: (2.2, 5.1)}
+
+        merged = merge_close_raw_positions(raw_positions, merge_distance_m=0.0)
+
+        self.assertEqual(merged, raw_positions)
 
 
 if __name__ == "__main__":

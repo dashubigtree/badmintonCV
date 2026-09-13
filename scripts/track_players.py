@@ -89,6 +89,12 @@ def parse_args() -> argparse.Namespace:
         default=1.8,
         help="Maximum court-meter distance for re-linking a new tracker ID to a missing minimap identity.",
     )
+    parser.add_argument(
+        "--minimap-merge-distance",
+        type=float,
+        default=0.45,
+        help="Merge same-frame minimap detections closer than this court-meter distance. Use 0 to disable.",
+    )
     return parser.parse_args()
 
 
@@ -111,6 +117,7 @@ def annotate_video(
     max_minimap_players: int = 4,
     stale_trail_frames: int = 12,
     minimap_match_distance: float = 1.8,
+    minimap_merge_distance: float = 0.45,
 ) -> None:
     import cv2
     import numpy as np
@@ -138,6 +145,7 @@ def annotate_video(
                 max_players=max(1, max_minimap_players),
                 stale_frames=max(0, stale_trail_frames),
                 match_distance_m=max(0.1, minimap_match_distance),
+                merge_distance_m=max(0.0, minimap_merge_distance),
             ),
             "size": max(120, minimap_size),
         }
@@ -446,7 +454,10 @@ def draw_minimap(
     for track_id, point_m in current_positions_m.items():
         trails[track_id].append(point_m)
 
+    active_track_ids = set(current_positions_m)
     for track_id, trail in list(trails.items()):
+        if track_id not in active_track_ids:
+            continue
         color = stable_track_color(int(track_id))
         pixel_trail = [
             minimap_pixel(point, origin, (width, height), court_size["width"], court_size["length"], padding)
@@ -545,6 +556,7 @@ def main() -> None:
         max_minimap_players=args.max_minimap_players,
         stale_trail_frames=args.stale_trail_frames,
         minimap_match_distance=args.minimap_match_distance,
+        minimap_merge_distance=args.minimap_merge_distance,
     )
     print(f"Saved tracked video to {args.output}")
 
