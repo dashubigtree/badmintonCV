@@ -111,7 +111,7 @@ def annotate_video(
         calibration = load_court_calibration(court_calibration_path)
         image_points = np.array(calibration["image_points"], dtype=np.float32)
         court_points = np.array(calibration["court_points_m"], dtype=np.float32)
-        homography = cv2.getPerspectiveTransform(image_points, court_points)
+        homography = build_image_to_court_transform(image_points, court_points)
         minimap_state = {
             "homography": homography,
             "court_size_m": calibration["court_size_m"],
@@ -180,6 +180,20 @@ def annotate_video(
 
     if frame_index == 0:
         raise RuntimeError(f"No frames were processed from: {video}")
+
+
+def build_image_to_court_transform(image_points: object, court_points: object) -> object:
+    import cv2
+    import numpy as np
+
+    if len(image_points) == 3:
+        affine = cv2.getAffineTransform(image_points, court_points)
+        return np.vstack([affine, [0.0, 0.0, 1.0]])
+
+    homography, _mask = cv2.findHomography(image_points, court_points, method=0)
+    if homography is None:
+        raise RuntimeError("Could not compute court calibration transform.")
+    return homography
 
 
 def annotate_frame(

@@ -7,7 +7,14 @@ from typing import Iterable
 
 COURT_WIDTH_M = 6.10
 COURT_LENGTH_M = 13.40
+NET_Y_M = COURT_LENGTH_M / 2.0
+DOUBLES_LONG_SERVICE_OFFSET_M = 0.76
 COURT_CORNER_NAMES = ("top_left", "top_right", "bottom_right", "bottom_left")
+THREE_POINT_FAR_LABELS = (
+    "far_center_back_doubles_service",
+    "net_left_post",
+    "net_right_post",
+)
 Point = tuple[float, float]
 
 
@@ -17,6 +24,18 @@ class CourtCalibrationError(ValueError):
 
 def standard_court_points(width_m: float = COURT_WIDTH_M, length_m: float = COURT_LENGTH_M) -> list[Point]:
     return [(0.0, 0.0), (width_m, 0.0), (width_m, length_m), (0.0, length_m)]
+
+
+def three_point_far_court_points(
+    width_m: float = COURT_WIDTH_M,
+    length_m: float = COURT_LENGTH_M,
+    doubles_long_service_offset_m: float = DOUBLES_LONG_SERVICE_OFFSET_M,
+) -> list[Point]:
+    return [
+        (width_m / 2.0, doubles_long_service_offset_m),
+        (0.0, length_m / 2.0),
+        (width_m, length_m / 2.0),
+    ]
 
 
 def write_court_calibration(
@@ -40,6 +59,33 @@ def write_court_calibration(
     output.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def write_three_point_far_calibration(
+    image_points: Iterable[tuple[int, int]],
+    output_path: str | Path,
+    width_m: float = COURT_WIDTH_M,
+    length_m: float = COURT_LENGTH_M,
+) -> None:
+    points = list(image_points)
+    if len(points) != 3:
+        raise CourtCalibrationError("Three-point far calibration requires exactly 3 points.")
+
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "court_size_m": {"width": width_m, "length": length_m},
+        "calibration_type": "three_point_far_affine",
+        "transform_type": "affine",
+        "point_order": list(THREE_POINT_FAR_LABELS),
+        "image_points": [[int(x), int(y)] for x, y in points],
+        "court_points_m": [[x, y] for x, y in three_point_far_court_points(width_m, length_m)],
+        "notes": (
+            "Approximate affine calibration for cropped views. "
+            "Use this for relative minimap positions, not precise distance measurement."
+        ),
+    }
+    output.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def load_court_calibration(config_path: str | Path) -> dict[str, object]:
     path = Path(config_path)
     if not path.exists():
@@ -54,8 +100,10 @@ def load_court_calibration(config_path: str | Path) -> dict[str, object]:
 
     image_points = validate_points(data.get("image_points"), "image_points")
     court_points = validate_points(data.get("court_points_m"), "court_points_m")
-    if len(image_points) != 4 or len(court_points) != 4:
-        raise CourtCalibrationError("image_points and court_points_m must each contain exactly 4 points.")
+    if len(image_points) != len(court_points):
+        raise CourtCalibrationError("image_points and court_points_m must contain the same number of points.")
+    if len(image_points) < 3:
+        raise CourtCalibrationError("Calibration requires at least 3 point pairs.")
 
     court_size = data.get("court_size_m")
     if not isinstance(court_size, dict):
@@ -69,6 +117,8 @@ def load_court_calibration(config_path: str | Path) -> dict[str, object]:
         "court_size_m": {"width": float(width), "length": float(length)},
         "image_points": image_points,
         "court_points_m": court_points,
+        "transform_type": data.get("transform_type", "homography" if len(image_points) >= 4 else "affine"),
+        "calibration_type": data.get("calibration_type", "four_corner_homography"),
     }
 
 

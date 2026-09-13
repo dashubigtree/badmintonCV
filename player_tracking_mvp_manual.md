@@ -364,6 +364,25 @@ data/frames/court_calibration_preview.jpg
 
 這份校正檔和 ROI 不同。ROI 是用來排除隔壁場球員；場地校正是用來把畫面中的球員位置轉成平面球場位置。
 
+### 10.5.1 場地底角被裁切時：三點校正
+
+如果畫面像常見手機拍攝那樣，右下角和左下角球場邊界被切掉，不要硬點四個角。可以改用三個較容易看到的點做近似校正：
+
+1. `far_center_back_doubles_service`：中線和後方雙打發球線的交點。
+2. `net_left_post`：網子左側立柱點。
+3. `net_right_post`：網子右側立柱點。
+
+執行：
+
+```bash
+python scripts/annotate_court_keypoints.py \
+  --image data/frames/first_frame.jpg \
+  --output configs/court_calibration.json \
+  --preview data/frames/court_keypoint_calibration_preview.jpg
+```
+
+這個方法會產生仿射校正，適合用來看右上角小地圖的相對站位與移動方向。它不適合拿來當精準距離、速度或跑動米數分析。如果之後要做精準數據，仍建議改用四角或四個以上標準場地點。
+
 ## 11. 第五步：執行人物偵測與追蹤
 
 這一步會讀取原始影片，輸出一支新影片。

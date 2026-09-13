@@ -16,11 +16,14 @@ from scripts.annotate_court_roi import write_roi_config
 from scripts.court_minimap import (
     COURT_LENGTH_M,
     COURT_WIDTH_M,
+    THREE_POINT_FAR_LABELS,
     apply_homography,
     load_court_calibration,
     minimap_pixel,
     point_is_inside_court,
+    three_point_far_court_points,
     write_court_calibration,
+    write_three_point_far_calibration,
 )
 from scripts.pose_utils import visible_pose_points
 from scripts.track_players import parse_args
@@ -105,6 +108,19 @@ class ROIUtilsTest(unittest.TestCase):
 
             self.assertEqual(calibration["image_points"][0], (10.0, 20.0))
             self.assertEqual(calibration["court_points_m"][2], (COURT_WIDTH_M, COURT_LENGTH_M))
+
+    def test_write_and_load_three_point_far_calibration(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "court_calibration.json"
+            write_three_point_far_calibration([(100, 120), (40, 300), (460, 300)], path)
+            data = json.loads(path.read_text(encoding="utf-8"))
+
+            self.assertEqual(data["point_order"], list(THREE_POINT_FAR_LABELS))
+            self.assertEqual(data["transform_type"], "affine")
+
+            calibration = load_court_calibration(path)
+            self.assertEqual(calibration["image_points"][1], (40.0, 300.0))
+            self.assertEqual(calibration["court_points_m"], three_point_far_court_points())
 
     def test_apply_homography_identity(self) -> None:
         homography = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
