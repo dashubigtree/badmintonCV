@@ -335,6 +335,35 @@ data/frames/roi_preview.jpg
 | 多邊形沒有包住球員活動範圍 | 把 ROI 畫大一點 |
 | 多邊形位置整個歪掉 | 檢查是不是圖片尺寸或座標用錯 |
 
+## 10.5 選配：建立右上角平面場地校正
+
+如果你想在影片右上角顯示一個平面羽球場，並把球員位置投影到小地圖上，需要先建立一份場地校正檔。
+
+執行：
+
+```bash
+python scripts/annotate_court_calibration.py \
+  --image data/frames/first_frame.jpg \
+  --output configs/court_calibration.json \
+  --preview data/frames/court_calibration_preview.jpg
+```
+
+跳出圖片視窗後，請依照你希望右上角小地圖呈現的平面方向，點選目標球場四個角：
+
+1. `top_left`
+2. `top_right`
+3. `bottom_right`
+4. `bottom_left`
+
+按 `Enter` 後會產生：
+
+```text
+configs/court_calibration.json
+data/frames/court_calibration_preview.jpg
+```
+
+這份校正檔和 ROI 不同。ROI 是用來排除隔壁場球員；場地校正是用來把畫面中的球員位置轉成平面球場位置。
+
 ## 11. 第五步：執行人物偵測與追蹤
 
 這一步會讀取原始影片，輸出一支新影片。
@@ -376,6 +405,20 @@ python scripts/track_players.py \
   --minimal-overlay
 ```
 
+如果要在右上角顯示平面球場與球員移動尾跡，加入 `--minimap` 和場地校正檔：
+
+```bash
+python scripts/track_players.py \
+  --video data/input/sample.mp4 \
+  --roi configs/court_roi.json \
+  --output data/output/sample_tracked_pose_minimap.mp4 \
+  --model yolo11s-pose.pt \
+  --tracker bytetrack.yaml \
+  --device mps \
+  --minimap \
+  --court-calibration configs/court_calibration.json
+```
+
 如果 `mps` 不能跑，改成：
 
 ```bash
@@ -400,6 +443,9 @@ python scripts/track_players.py \
 | `--device` | 用 M2 Max GPU 或 CPU 跑 |
 | `--pose-conf` | 關節點信心門檻，預設 `0.30`，數字越高越嚴格 |
 | `--minimal-overlay` | 簡潔模式，不顯示 ID、信心分數、關節文字或左上角統計 |
+| `--minimap` | 在右上角畫平面羽球場與球員移動軌跡 |
+| `--court-calibration` | 場地校正檔，使用 `annotate_court_calibration.py` 產生 |
+| `--trail-length` | 小地圖保留幾幀的移動尾跡，預設 `90` |
 
 ### 11.2 第一次建議用哪個模型
 

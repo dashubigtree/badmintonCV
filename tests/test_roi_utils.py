@@ -13,6 +13,15 @@ from scripts.roi_utils import (
     validate_polygon,
 )
 from scripts.annotate_court_roi import write_roi_config
+from scripts.court_minimap import (
+    COURT_LENGTH_M,
+    COURT_WIDTH_M,
+    apply_homography,
+    load_court_calibration,
+    minimap_pixel,
+    point_is_inside_court,
+    write_court_calibration,
+)
 from scripts.pose_utils import visible_pose_points
 from scripts.track_players import parse_args
 
@@ -86,6 +95,59 @@ class ROIUtilsTest(unittest.TestCase):
             args = parse_args()
 
         self.assertTrue(args.minimal_overlay)
+
+    def test_write_and_load_court_calibration(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "court_calibration.json"
+            write_court_calibration([(10, 20), (110, 20), (110, 220), (10, 220)], path)
+
+            calibration = load_court_calibration(path)
+
+            self.assertEqual(calibration["image_points"][0], (10.0, 20.0))
+            self.assertEqual(calibration["court_points_m"][2], (COURT_WIDTH_M, COURT_LENGTH_M))
+
+    def test_apply_homography_identity(self) -> None:
+        homography = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+        self.assertEqual(apply_homography((3.5, 4.5), homography), (3.5, 4.5))
+
+    def test_minimap_pixel_maps_court_center(self) -> None:
+        pixel = minimap_pixel(
+            (COURT_WIDTH_M / 2.0, COURT_LENGTH_M / 2.0),
+            origin=(100, 20),
+            size=(122, 268),
+            court_width_m=COURT_WIDTH_M,
+            court_length_m=COURT_LENGTH_M,
+            padding=10,
+        )
+        self.assertEqual(pixel, (161, 154))
+        self.assertTrue(point_is_inside_court((COURT_WIDTH_M, COURT_LENGTH_M), COURT_WIDTH_M, COURT_LENGTH_M))
+        self.assertFalse(point_is_inside_court((COURT_WIDTH_M + 0.1, 0.0), COURT_WIDTH_M, COURT_LENGTH_M))
+
+    def test_track_players_parse_args_accepts_minimap_options(self) -> None:
+        import sys
+        from unittest.mock import patch
+
+        test_args = [
+            "track_players.py",
+            "--video",
+            "data/input/sample.mp4",
+            "--roi",
+            "configs/court_roi.json",
+            "--output",
+            "data/output/out.mp4",
+            "--minimap",
+            "--court-calibration",
+            "configs/court_calibration.json",
+            "--trail-length",
+            "30",
+        ]
+
+        with patch.object(sys, "argv", test_args):
+            args = parse_args()
+
+        self.assertTrue(args.minimap)
+        self.assertEqual(args.court_calibration, "configs/court_calibration.json")
+        self.assertEqual(args.trail_length, 30)
 
 
 if __name__ == "__main__":
