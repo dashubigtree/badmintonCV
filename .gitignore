@@ -1,0 +1,18 @@
+# AI 模型權重
+*.pt
+*.ckpt
+*.safetensors
+*.bin
+*.pth
+
+# 原始影片與產出（大型檔案，不進 git）
+data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# macOS
+.DS_Store

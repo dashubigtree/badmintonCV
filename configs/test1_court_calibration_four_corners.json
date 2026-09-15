@@ -1,0 +1,48 @@
+{
+  "court_size_m": {
+    "width": 6.1,
+    "length": 13.4
+  },
+  "point_order": [
+    "top_left",
+    "top_right",
+    "bottom_right",
+    "bottom_left"
+  ],
+  "image_points": [
+    [
+      1057,
+      585
+    ],
+    [
+      1777,
+      616
+    ],
+    [
+      1844,
+      1075
+    ],
+    [
+      4,
+      845
+    ]
+  ],
+  "court_points_m": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      6.1,
+      0.0
+    ],
+    [
+      6.1,
+      13.4
+    ],
+    [
+      0.0,
+      13.4
+    ]
+  ]
+}

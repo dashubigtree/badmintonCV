@@ -1,0 +1,51 @@
+{
+  "court_size_m": {
+    "width": 6.1,
+    "length": 13.4
+  },
+  "calibration_type": "best_four_far_net_homography",
+  "transform_type": "homography",
+  "point_order": [
+    "far_left_doubles_long_service",
+    "far_right_doubles_long_service",
+    "net_right_post",
+    "net_left_post"
+  ],
+  "image_points": [
+    [
+      1063,
+      595
+    ],
+    [
+      1776,
+      620
+    ],
+    [
+      1788,
+      736
+    ],
+    [
+      720,
+      674
+    ]
+  ],
+  "court_points_m": [
+    [
+      0.0,
+      0.76
+    ],
+    [
+      6.1,
+      0.76
+    ],
+    [
+      6.1,
+      6.7
+    ],
+    [
+      0.0,
+      6.7
+    ]
+  ],
+  "notes": "Recommended calibration for cropped near-court views. Uses far doubles long service line endpoints and net-side left/right points."
+}
