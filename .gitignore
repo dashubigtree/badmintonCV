@@ -8,6 +8,10 @@
 # 原始影片與產出（大型檔案，不進 git）
 data/
 
+# 本機 AI 助手指示
+AGENTS.md
+CLAUDE.md
+
 # Python
 __pycache__/
 *.pyc
