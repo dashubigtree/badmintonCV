@@ -24,12 +24,12 @@ from pathlib import Path
 try:
     from .court_minimap import apply_homography, load_court_calibration, minimap_pixel, point_is_inside_court
     from .identity_manager import IdentityManager, get_ground_point
-    from .pose_utils import POSE_SKELETON_EDGES, visible_pose_points
+    from .pose_utils import POSE_SKELETON_EDGES, TARGET_POSE_POINTS, visible_pose_points
     from .track_players import build_image_to_court_transform, get_pose_arrays
 except ImportError:
     from court_minimap import apply_homography, load_court_calibration, minimap_pixel, point_is_inside_court
     from identity_manager import IdentityManager, get_ground_point
-    from pose_utils import POSE_SKELETON_EDGES, visible_pose_points
+    from pose_utils import POSE_SKELETON_EDGES, TARGET_POSE_POINTS, visible_pose_points
     from track_players import build_image_to_court_transform, get_pose_arrays
 
 
@@ -66,6 +66,16 @@ CSV_FIELDS = [
     "stable_y_m",
     "ground_speed_m_per_frame",
 ]
+
+# One (x_px, y_px, conf) triple per joint, in image pixel coordinates -- not
+# court meters, since the ground-plane homography does not apply to points
+# above the ground (wrist, shoulder, head, ...).
+POSE_CSV_FIELDS = [
+    field
+    for pose_point in TARGET_POSE_POINTS
+    for field in (f"{pose_point.name}_x_px", f"{pose_point.name}_y_px", f"{pose_point.name}_conf")
+]
+CSV_FIELDS = CSV_FIELDS + POSE_CSV_FIELDS
 
 
 def parse_args() -> argparse.Namespace:
@@ -326,6 +336,23 @@ def draw_assignment(frame, item: dict, minimal_overlay: bool, pose_conf_threshol
     )
 
 
+def pose_csv_values(pose_xy: object, pose_conf: object) -> list:
+    """Flat [x_px, y_px, conf] * len(TARGET_POSE_POINTS), raw (unfiltered by
+    confidence) so downstream analysis can threshold itself. Blank when the
+    detection had no pose (e.g. a non-pose model, or the point is missing)."""
+    values: list = []
+    for pose_point in TARGET_POSE_POINTS:
+        if pose_xy is None or pose_point.index >= len(pose_xy):
+            values.extend(["", "", ""])
+            continue
+        x, y = pose_xy[pose_point.index]
+        conf = ""
+        if pose_conf is not None and pose_point.index < len(pose_conf):
+            conf = float(pose_conf[pose_point.index])
+        values.extend([float(x), float(y), conf])
+    return values
+
+
 def write_csv_row(csv_writer, frame_index: int, fps: float, status: str, identity_manager: IdentityManager, item: dict) -> None:
     player_id = item["player_id"]
     state = identity_manager.states[player_id]
@@ -355,6 +382,7 @@ def write_csv_row(csv_writer, frame_index: int, fps: float, status: str, identit
                 state.stable_x,
                 state.stable_y,
                 position_info["ground_speed_m_per_frame"],
+                *pose_csv_values(detection["pose_xy"], detection["pose_conf"]),
             ]
         )
     else:
@@ -380,6 +408,7 @@ def write_csv_row(csv_writer, frame_index: int, fps: float, status: str, identit
                 item["pred_x"],
                 item["pred_y"],
                 "",
+                *pose_csv_values(None, None),
             ]
         )
 
